@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estructura de Lewis Automática</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f2f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    input, button {
+      padding: 10px;
+      font-size: 1rem;
+      margin: 10px 0;
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    canvas {
+      border: 2px solid #ccc;
+      margin-top: 20px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Estructura de Lewis Automática</h2>
+
+  <label>Ingresa la fórmula química (ej: AlF3, H2O, CO2):</label>
+  <input type="text" id="formula" placeholder="Ej: AlF3">
+  <button onclick="generarLewis()">Generar Estructura de Lewis</button>
+
+  <p id="info"></p>
+  <canvas id="canvas" width="700" height="400"></canvas>
+</div>
+
+<script>
+  const ctx = document.getElementById("canvas").getContext("2d");
+
+  // Diccionario simple de electrones de valencia
+  const valencias = {
+    H: 1, He: 2, Li: 1, Be: 2, B: 3, C: 4, N: 5, O: 6, F: 7, Ne: 8,
+    Na: 1, Mg: 2, Al: 3, Si: 4, P: 5, S: 6, Cl: 7, Ar: 8
+  };
+
+  function generarLewis() {
+    const formula = document.getElementById("formula").value.trim();
+    const parsed = parseFormula(formula);
+
+    if (!parsed) {
+      document.getElementById("info").innerHTML = "⚠️ Fórmula no válida.";
+      return;
+    }
+
+    const [central, ligandos] = parsed;
+
+    // Calcular electrones de valencia totales
+    let totalValencia = valencias[central] || 0;
+    ligandos.forEach(l => {
+      totalValencia += (valencias[l.simbolo] || 0) * l.cantidad;
+    });
+
+    document.getElementById("info").innerHTML =
+      `Átomo central: ${central}<br>
+       Ligandos: ${ligandos.map(l => `${l.simbolo} (${l.cantidad})`).join(", ")}<br>
+       Electrones de valencia totales: ${totalValencia}`;
+
+    dibujarLewis(central, ligandos);
+  }
+
+  function parseFormula(formula) {
+    const match = formula.match(/^([A-Z][a-z]?)([A-Z][a-z]?)(\d*)$/);
+    if (!match) return null;
+
+    const central = match[1];
+    const ligando = match[2];
+    const cantidad = parseInt(match[3] || "1");
+
+    return [central, [{ simbolo: ligando, cantidad }]];
+  }
+
+  function dibujarLewis(central, ligandos) {
+    ctx.clearRect(0, 0, 700, 400);
+
+    const centerX = 350;
+    const centerY = 200;
+
+    // Dibuja átomo central
+    dibujarAtomo(central, centerX, centerY);
+
+    const radius = 120;
+    const total = ligandos[0].cantidad;
+
+    for (let i = 0; i < total; i++) {
+      const angle = (2 * Math.PI / total) * i;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+
+      dibujarAtomo(ligandos[0].simbolo, x, y);
+      dibujarEnlace(centerX, centerY, x, y);
+    }
+  }
+
+  function dibujarAtomo(simbolo, x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 30, 0, 2 * Math.PI);
+    ctx.fillStyle = "#4CAF50";
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "white";
+    ctx.font = "bold 18px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(simbolo, x, y + 6);
+  }
+
+  function dibujarEnlace(x1, y1, x2, y2) {
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+</script>
+
+</body>
+</html>
