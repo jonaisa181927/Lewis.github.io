@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estructura de Lewis correcta</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #f5f5f5;
+    padding: 20px;
+  }
+  #formula {
+    font-size: 1.2rem;
+    padding: 8px;
+    width: 300px;
+    border-radius: 8px;
+    border: 1px solid #aaa;
+  }
+  button {
+    font-size: 1.2rem;
+    padding: 10px 20px;
+    margin-left: 10px;
+    border-radius: 8px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #0056b3;
+  }
+  canvas {
+    margin-top: 20px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 10px;
+  }
+  #info {
+    margin-top: 15px;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<h1>Estructura de Lewis Automática</h1>
+<input id="formula" placeholder="Ej: AlF3, CaBr, H2SO3, NO, SO3" />
+<button onclick="dibujar()">Dibujar</button>
+
+<div id="info"></div>
+<canvas id="canvas" width="700" height="500"></canvas>
+
+<script>
+  // Lista de símbolos químicos reconocidos para parsing correcto
+  const elementosQuimicos = [
+    "H","He","Li","Be","B","C","N","O","F","Ne",
+    "Na","Mg","Al","Si","P","S","Cl","Ar",
+    "K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn",
+    "Ga","Ge","As","Se","Br","Kr","Rb","Sr","Y","Zr","Nb","Mo",
+    "Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe",
+    "Cs","Ba","La","Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy",
+    "Ho","Er","Tm","Yb","Lu","Hf","Ta","W","Re","Os","Ir","Pt",
+    "Au","Hg","Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
+    "Pa","U","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No",
+    "Lr","Rf","Db","Sg","Bh","Hs","Mt","Ds","Rg","Cn","Fl","Lv"
+  ];
+
+  // Valencias y electronegatividad simplificada para algunos elementos
+  const valencias = {
+    H:1, He:2,
+    Li:1, Be:2, B:3, C:4, N:5, O:6, F:7, Ne:8,
+    Na:1, Mg:2, Al:3, Si:4, P:5, S:6, Cl:7, Ar:8,
+    K:1, Ca:2, Br:7, I:7
+  };
+
+  const electronegatividad = {
+    H:2.2, He:0,
+    Li:1.0, Be:1.5, B:2.0, C:2.5, N:3.0, O:3.5, F:4.0, Ne:0,
+    Na:0.9, Mg:1.2, Al:1.5, Si:1.8, P:2.1, S:2.5, Cl:3.0, Ar:0,
+    K:0.8, Ca:1.0, Br:2.8, I:2.5
+  };
+
+  // Parseo correcto de fórmula química con símbolos conocidos
+  function parseFormula(formula) {
+    const elementos = {};
+    let i = 0;
+    while (i < formula.length) {
+      // Buscar símbolo válido con 2 o 1 letras
+      let simbolo = null;
+
+      // Probar 2 letras
+      if (i + 1 < formula.length) {
+        let dosLetras = formula[i] + formula[i+1];
+        if (elementosQuimicos.includes(dosLetras)) {
+          simbolo = dosLetras;
+          i += 2;
+        }
+      }
+
+      // Si no encontró 2 letras, probar 1 letra
+      if (!simbolo) {
+        let unaLetra = formula[i];
+        if (elementosQuimicos.includes(unaLetra)) {
+          simbolo = unaLetra;
+          i += 1;
+        } else {
+          // Símbolo no válido, saltar para evitar loop infinito
+          i += 1;
+          continue;
+        }
+      }
+
+      // Leer cantidad (puede tener más de un dígito)
+      let cantidadStr = '';
+      while (i < formula.length && formula[i] >= '0' && formula[i] <= '9') {
+        cantidadStr += formula[i];
+        i++;
+      }
+      let cantidad = cantidadStr === '' ? 1 : parseInt(cantidadStr);
+
+      elementos[simbolo] = (elementos[simbolo] || 0) + cantidad;
+    }
+    return elementos;
+  }
+
+  function elegirCentral(elementos) {
+    let central = null;
+    let menorEn = 10;
+    for (const el in elementos) {
+      if (el !== 'H' && electronegatividad[el] !== undefined && electronegatividad[el] < menorEn) {
+        central = el;
+        menorEn = electronegatividad[el];
+      }
+    }
+    if (!central) {
+      central = Object.keys(elementos)[0];
+    }
+    return central;
+  }
+
+  function dibujarAtomo(ctx, simbolo, x, y, radio = 40) {
+    ctx.beginPath();
+    ctx.fillStyle = '#007bff';
+    ctx.strokeStyle = '#003d99';
+    ctx.lineWidth = 3;
+    ctx.arc(x, y, radio, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(simbolo, x, y);
+  }
+
+  function dibujarEnlace(ctx, x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function dibujar() {
+    const formulaInput = document.getElementById('formula').value.trim();
+    const info = document.getElementById('info');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    info.textContent = '';
+
+    if (!formulaInput) {
+      info.textContent = 'Por favor ingresa una fórmula química válida.';
+      return;
+    }
+
+    const elementos = parseFormula(formulaInput);
+
+    if (Object.keys(elementos).length === 0) {
+      info.textContent = 'Fórmula no válida o no reconocida.';
+      return;
+    }
+
+    const central = elegirCentral(elementos);
+
+    const ligandos = [];
+    for (const el in elementos) {
+      if (el !== central) {
+        for (let i = 0; i < elementos[el]; i++) {
+          ligandos.push(el);
+        }
+      }
+    }
+
+    info.innerHTML = `<b>Átomo central:</b> ${central} <br><b>Ligandos:</b> ${ligandos.join(', ') || 'Ninguno'}`;
+
+    // Dibuja átomo central
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const radioCentral = 50;
+    dibujarAtomo(ctx, central, cx, cy, radioCentral);
+
+    if (ligandos.length === 0) return;
+
+    // Distribuye ligandos en círculo alrededor del central
+    const radioOrbital = 150;
+    const n = ligandos.length;
+    const anguloSep = (2 * Math.PI) / n;
+
+    for (let i = 0; i < n; i++) {
+      const angulo = -Math.PI / 2 + i * anguloSep; // empieza arriba
+      const x = cx + radioOrbital * Math.cos(angulo);
+      const y = cy + radioOrbital * Math.sin(angulo);
+
+      dibujarEnlace(ctx, cx, cy, x, y);
+      dibujarAtomo(ctx, ligandos[i], x, y, 35);
+    }
+  }
+</script>
+
+</body>
+</html>

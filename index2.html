@@ -1,144 +1,242 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Estructura de Lewis Automática</title>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f0f2f5;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    }
-    input, button {
-      padding: 10px;
-      font-size: 1rem;
-      margin: 10px 0;
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-    }
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    canvas {
-      border: 2px solid #ccc;
-      margin-top: 20px;
-      border-radius: 8px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estructura de Lewis avanzada</title>
+<style>
+  body {
+    background: #222;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+  input, button {
+    font-size: 1.2rem;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: none;
+    margin: 10px;
+  }
+  button {
+    background-color: #0077cc;
+    color: white;
+    cursor: pointer;
+  }
+  canvas {
+    background-color: #111;
+    border-radius: 15px;
+    margin-top: 20px;
+  }
+  #info {
+    margin-top: 10px;
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: left;
+  }
+</style>
 </head>
 <body>
 
-<div class="container">
-  <h2>Estructura de Lewis Automática</h2>
-
-  <label>Ingresa la fórmula química (ej: AlF3, H2O, CO2):</label>
-  <input type="text" id="formula" placeholder="Ej: AlF3">
-  <button onclick="generarLewis()">Generar Estructura de Lewis</button>
-
-  <p id="info"></p>
-  <canvas id="canvas" width="700" height="400"></canvas>
-</div>
+<h1>Estructura de Lewis Avanzada</h1>
+<input id="formula" type="text" placeholder="Ejemplo: AlF3, CaBr, H2SO3, NO, SO3" />
+<button onclick="dibujar()">Dibujar</button>
+<div id="info"></div>
+<canvas id="canvas" width="700" height="450"></canvas>
 
 <script>
-  const ctx = document.getElementById("canvas").getContext("2d");
+// Valencias típicas para elementos comunes
+const valencias = {
+  H: 1, He: 2,
+  Li: 1, Be: 2, B: 3, C: 4, N: 5, O: 6, F: 7, Ne: 8,
+  Na: 1, Mg: 2, Al: 3, Si: 4, P: 5, S: 6, Cl: 7, Ar: 8,
+  K: 1, Ca: 2, Br: 7, I: 7,
+};
 
-  // Diccionario simple de electrones de valencia
-  const valencias = {
-    H: 1, He: 2, Li: 1, Be: 2, B: 3, C: 4, N: 5, O: 6, F: 7, Ne: 8,
-    Na: 1, Mg: 2, Al: 3, Si: 4, P: 5, S: 6, Cl: 7, Ar: 8
+// Átomos que pueden tener menos de octeto (como Al)
+const excepcionesOcteto = ['B', 'Al'];
+
+function parseFormula(formula) {
+  const regex = /([A-Z][a-z]?)(\d*)/g;
+  const elementos = {};
+  let match;
+  while ((match = regex.exec(formula)) !== null) {
+    const el = match[1];
+    const cant = parseInt(match[2]) || 1;
+    elementos[el] = (elementos[el] || 0) + cant;
+  }
+  return elementos;
+}
+
+function elegirCentral(elementos) {
+  // Regla simplificada:
+  // 1) Si C, es central
+  // 2) Si no, Si o P o S
+  // 3) Si no, menos electronegativo y no H
+  if ('C' in elementos) return 'C';
+  if ('Si' in elementos) return 'Si';
+  if ('P' in elementos) return 'P';
+  if ('S' in elementos) return 'S';
+
+  const sinH = Object.keys(elementos).filter(e => e !== 'H');
+  if (sinH.length === 0) return 'H';
+
+  // Menor electronegatividad (simplificado)
+  // Orden común electronegativos (de menos a más):
+  const electronegatividad = {
+    'Li': 1.0, 'Be': 1.5, 'B': 2.0, 'C': 2.5, 'N': 3.0, 'O': 3.5, 'F': 4.0,
+    'Na': 0.9, 'Mg': 1.2, 'Al': 1.5, 'Si': 1.8, 'P': 2.1, 'S': 2.5, 'Cl': 3.0,
+    'K': 0.8, 'Ca': 1.0, 'Br': 2.8, 'I': 2.5
   };
 
-  function generarLewis() {
-    const formula = document.getElementById("formula").value.trim();
-    const parsed = parseFormula(formula);
+  sinH.sort((a,b) => (electronegatividad[a]||2.5) - (electronegatividad[b]||2.5));
+  return sinH[0];
+}
 
-    if (!parsed) {
-      document.getElementById("info").innerHTML = "⚠️ Fórmula no válida.";
-      return;
-    }
-
-    const [central, ligandos] = parsed;
-
-    // Calcular electrones de valencia totales
-    let totalValencia = valencias[central] || 0;
-    ligandos.forEach(l => {
-      totalValencia += (valencias[l.simbolo] || 0) * l.cantidad;
-    });
-
-    document.getElementById("info").innerHTML =
-      `Átomo central: ${central}<br>
-       Ligandos: ${ligandos.map(l => `${l.simbolo} (${l.cantidad})`).join(", ")}<br>
-       Electrones de valencia totales: ${totalValencia}`;
-
-    dibujarLewis(central, ligandos);
+function totalElectronesValencia(elementos) {
+  let total = 0;
+  for (const el in elementos) {
+    const val = valencias[el] || 0;
+    total += val * elementos[el];
   }
+  return total;
+}
 
-  function parseFormula(formula) {
-    const match = formula.match(/^([A-Z][a-z]?)([A-Z][a-z]?)(\d*)$/);
-    if (!match) return null;
+function dibujarAtomo(ctx, simbolo, x, y, radio) {
+  ctx.fillStyle = 'black';
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y, radio, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.stroke();
 
-    const central = match[1];
-    const ligando = match[2];
-    const cantidad = parseInt(match[3] || "1");
+  ctx.fillStyle = 'white';
+  ctx.font = `${radio}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(simbolo, x, y);
+}
 
-    return [central, [{ simbolo: ligando, cantidad }]];
-  }
+function dibujarEnlace(ctx, x1, y1, x2, y2, grosor = 3) {
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = grosor;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
 
-  function dibujarLewis(central, ligandos) {
-    ctx.clearRect(0, 0, 700, 400);
-
-    const centerX = 350;
-    const centerY = 200;
-
-    // Dibuja átomo central
-    dibujarAtomo(central, centerX, centerY);
-
-    const radius = 120;
-    const total = ligandos[0].cantidad;
-
-    for (let i = 0; i < total; i++) {
-      const angle = (2 * Math.PI / total) * i;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-
-      dibujarAtomo(ligandos[0].simbolo, x, y);
-      dibujarEnlace(centerX, centerY, x, y);
-    }
-  }
-
-  function dibujarAtomo(simbolo, x, y) {
+function dibujarPuntos(ctx, x, y, electrones, radio = 55) {
+  if (electrones <= 0) return;
+  const anguloSep = (2 * Math.PI) / electrones;
+  ctx.fillStyle = 'yellow';
+  ctx.strokeStyle = 'orange';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < electrones; i++) {
+    const angulo = -Math.PI / 2 + i * anguloSep;
+    const px = x + radio * Math.cos(angulo);
+    const py = y + radio * Math.sin(angulo);
     ctx.beginPath();
-    ctx.arc(x, y, 30, 0, 2 * Math.PI);
-    ctx.fillStyle = "#4CAF50";
+    ctx.arc(px, py, 6, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "white";
-    ctx.font = "bold 18px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(simbolo, x, y + 6);
+  }
+}
+
+function dibujar() {
+  const formulaInput = document.getElementById('formula').value.trim();
+  const info = document.getElementById('info');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  info.textContent = '';
+
+  if (!formulaInput) {
+    info.textContent = 'Por favor ingresa una fórmula química válida.';
+    return;
   }
 
-  function dibujarEnlace(x1, y1, x2, y2) {
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
+  const elementos = parseFormula(formulaInput);
+  if (Object.keys(elementos).length === 0) {
+    info.textContent = 'Fórmula no válida o no reconocida.';
+    return;
   }
+
+  // Elegir átomo central y separar ligandos
+  const central = elegirCentral(elementos);
+  let ligandos = [];
+  for (const el in elementos) {
+    if (el !== central) {
+      for (let i=0; i < elementos[el]; i++) ligandos.push(el);
+    }
+  }
+
+  info.innerHTML = `<b>Átomo central:</b> ${central} <br><b>Ligandos:</b> ${ligandos.join(', ') || 'Ninguno'}`;
+
+  // Variables para dibujar
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const radioCentral = 50;
+
+  // Calcular electrones totales de valencia
+  let totalValencia = totalElectronesValencia(elementos);
+
+  // Enlaces: inicialmente simple enlace por ligando
+  const electronesPorEnlace = 2;
+  let totalEnlaces = ligandos.length;
+
+  // Excepciones: Al y B pueden tener 6 e- (3 enlaces)
+  const esExcepcion = excepcionesOcteto.includes(central);
+
+  // Dibuja átomo central
+  dibujarAtomo(ctx, central, cx, cy, radioCentral);
+
+  // Calcular electrones enlazantes y libres central
+  // Para excepciones: permiten menos electrones libres (ej: Al = 6)
+  let maxElectronesCentral = esExcepcion ? 6 : 8;
+
+  // Enlaces * 2 electrones por enlace
+  let electronesEnlacesCentral = totalEnlaces * electronesPorEnlace;
+  if (electronesEnlacesCentral > maxElectronesCentral) electronesEnlacesCentral = maxElectronesCentral;
+
+  // Electrones libres central
+  let electronesLibresCentral = maxElectronesCentral - electronesEnlacesCentral;
+  if (electronesLibresCentral < 0) electronesLibresCentral = 0;
+
+  dibujarPuntos(ctx, cx, cy, electronesLibresCentral, radioCentral + 15);
+
+  // Dibujar ligandos alrededor
+  const radioOrbital = 150;
+  const n = ligandos.length;
+  const anguloSep = n > 0 ? (2 * Math.PI) / n : 0;
+
+  ligandos.forEach((lig, i) => {
+    const angulo = -Math.PI / 2 + i * anguloSep;
+    const x = cx + radioOrbital * Math.cos(angulo);
+    const y = cy + radioOrbital * Math.sin(angulo);
+
+    // Dibuja enlace simple
+    dibujarEnlace(ctx, cx, cy, x, y);
+
+    // Dibuja átomo ligando
+    dibujarAtomo(ctx, lig, x, y, 35);
+
+    // Electrones libres en ligando = valencia - 2 (enlace simple)
+    const valLig = valencias[lig] || 0;
+    let libresLig = valLig - 2;
+    if (libresLig < 0) libresLig = 0;
+    dibujarPuntos(ctx, x, y, libresLig, 40);
+  });
+
+  // Nota para moléculas con electrones impares (como NO)
+  if (totalValencia % 2 !== 0) {
+    info.innerHTML += '<br><b>Nota:</b> Molécula con número impar de electrones (radical), no cumple octeto exacto.';
+  }
+}
 </script>
 
 </body>
